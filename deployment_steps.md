@@ -159,29 +159,111 @@ curl -s -o /dev/null -w "%{http_code}\n" https://todo.surfbible.in/dashboard  # 
 ## 6. Step 5 — Make Google sign-in work in production (optional)
 
 Email/password sign-in works in production **immediately** — no extra setup.
-Google OAuth needs three things because the browser is redirected through the Convex
-backend's site URL:
+Google OAuth redirects the user's browser through the Convex backend's **site URL**,
+which is currently `http://127.0.0.1:3211` — unreachable for end users.
 
-1. **Publicly reachable site URL.** The backend's site port is currently
-   `http://127.0.0.1:3211` — end users' browsers cannot reach that. Expose it publicly
-   (e.g. reverse-proxy `https://site.todo.surfbible.in` → `127.0.0.1:3211` on your
-   backend server, the same way `api.todo.surfbible.in` fronts the API port).
-2. **Point the app at the public site URL** — update in Vercel:
-   `NEXT_PUBLIC_CONVEX_SITE_URL=https://site.todo.surfbible.in`, and set the backend's
-   advertised site URL accordingly. Then run locally:
-   ```bash
-   npx convex env set SITE_URL https://todo.surfbible.in
-   ```
-   (This is where users land after Google sign-in. Note: a single `SITE_URL` serves
-   all environments — setting it to production means local-dev Google sign-in will
-   redirect to the prod URL.)
-3. **Google Cloud OAuth client** ([console](https://console.cloud.google.com/auth/overview)):
-   - Authorized JavaScript origins: `https://todo.surfbible.in`
-   - Authorized redirect URIs: `https://site.todo.surfbible.in/api/auth/callback/google`
-   - Then: `npx convex env set AUTH_GOOGLE_ID <id>` and
-     `npx convex env set AUTH_GOOGLE_SECRET <secret>`
+**Your stack (verified):** Ubuntu + nginx/1.24 + docker-compose Convex backend on
+`144.24.103.171`; `api.todo.surfbible.in` already proxies to the API port `3210`.
 
-Until this is done, hide nothing — the email/password path fully covers registration.
+`SITE_URL` has **already been set** to `https://todo.surfbible.in` on the backend ✅
+(this is where users land after Google sign-in).
+
+### 5a. DNS (in your surfbible.in DNS provider)
+
+Create an **A record**: `site.todo.surfbible.in` → `144.24.103.171` (same server as
+`api.todo.surfbible.in`).
+
+### 5b. nginx — proxy the site port (SSH to your server)
+
+```bash
+ssh <your-user>@144.24.103.171
+```
+
+Create `/etc/nginx/sites-available/convex-site`:
+
+```nginx
+server {
+    listen 80;
+    server_name site.todo.surfbible.in;
+
+    location / {
+        proxy_pass http://127.0.0.1:3211;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Enable it and get a TLS certificate (same pattern you used for `api.todo.surfbible.in`):
+
+```bash
+sudo ln -s /etc/nginx/sites-available/convex-site /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d site.todo.surfbible.in
+```
+
+### 5c. Tell the backend its public site origin
+
+In the `.env` file **beside your `docker-compose.yml`** on the server (per the official
+self-hosting docs), add:
+
+```bash
+# URL of Convex HTTP actions as accessed by end users' browsers
+CONVEX_SITE_ORIGIN='https://site.todo.surfbible.in'
+# Should already exist — if not, add it too:
+CONVEX_CLOUD_ORIGIN='https://api.todo.surfbible.in'
+```
+
+Recreate the backend:
+
+```bash
+docker compose up -d
+```
+
+> Note: the JWT issuer changes from `http://127.0.0.1:3211` to
+> `https://site.todo.surfbible.in` — existing sessions are invalidated, so users
+> (you) simply sign in again.
+
+### 5d. Verify from your local machine
+
+```bash
+# Must return HTTP 200 with a {"keys":[...]} body:
+curl -s https://site.todo.surfbible.in/.well-known/jwks.json
+
+# Must show issuer = https://site.todo.surfbible.in:
+curl -s https://site.todo.surfbible.in/.well-known/openid-configuration | grep issuer
+```
+
+### 5e. Google Cloud OAuth client
+
+[Google Auth Platform console](https://console.cloud.google.com/auth/overview) → your
+project → **Clients → Create client** (Web application):
+
+- **Authorized JavaScript origins:** `https://todo.surfbible.in`
+- **Authorized redirect URIs:** `https://site.todo.surfbible.in/api/auth/callback/google`
+
+Then from the project root:
+
+```bash
+npx convex env set AUTH_GOOGLE_ID <your-client-id>
+npx convex env set AUTH_GOOGLE_SECRET <your-client-secret>
+```
+
+### 5f. Update Vercel env var
+
+Vercel Dashboard → Settings → Environment Variables:
+
+- `NEXT_PUBLIC_CONVEX_SITE_URL` = `https://site.todo.surfbible.in` → then **Redeploy**
+
+### 5g. Test
+
+Incognito window → `https://todo.surfbible.in/signin` → **Continue with Google** →
+Google consent → lands back on `https://todo.surfbible.in/dashboard`, signed in.
+
+Until this step is done, the email/password path fully covers registration.
 
 ---
 
