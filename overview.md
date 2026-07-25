@@ -244,6 +244,22 @@ authenticated. The todos query uses the `"skip"` pattern so it never fires witho
 session, and the header carries a sign-out (`LogOut`) button (which lands back on
 `/signin` via the same redirect).
 
+**Layout (mobile-safe):** the shell uses `h-dvh` (dynamic viewport height) so the footer
+composer is never hidden under mobile browser chrome, plus `env(safe-area-inset-*)`
+padding for notched devices. All chrome is compact: a slim header (brand chip, live
+"N open" task counter, sign-out) ≈60px, category pills ≈46px, and a unified composer
+≈132px — so even on a 667px phone the task list keeps ~430px and every control
+(including the mic button) stays on screen.
+
+**Composer:** one footer holds the manual add form (compact category chips + input +
+add button) and a unified Gemini bar (mic toggle with listening state, AI input, send
+button) — no divider rows. The AI feedback line renders as a dismissible toast strip.
+
+**Task cards:** rounded-2xl with larger touch targets (44px checkbox/delete hit areas),
+per-category color-coded badges (Personal=indigo, Work=sky, Errands=amber,
+Fitness=emerald, Urgent=rose), hover/active micro-interactions, and a friendly
+illustrated empty state.
+
 ### `app/error.tsx` (Client Component)
 Route-level error boundary: logs the error and shows a friendly "Something went wrong"
 card with a retry (`reset`) button, so a runtime failure (e.g. a dropped backend

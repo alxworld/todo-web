@@ -31,7 +31,7 @@ export default function HomePage() {
   const { isAuthenticated } = useConvexAuth();
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100">
+    <div className="flex flex-col min-h-dvh max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100">
       <header className="pt-14 pb-10 px-6 bg-gradient-to-br from-slate-900 to-slate-950 text-white shrink-0">
         <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
           <Sparkles className="w-3 h-3 fill-indigo-400" />

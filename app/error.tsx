@@ -15,7 +15,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100 items-center justify-center gap-3 px-6">
+    <div className="flex flex-col h-dvh max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100 items-center justify-center gap-3 px-6">
       <div className="p-3 rounded-full bg-rose-50 text-rose-500">
         <TriangleAlert className="w-6 h-6" />
       </div>

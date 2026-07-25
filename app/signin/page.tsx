@@ -140,8 +140,8 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100">
-      <header className="pt-10 pb-4 px-5 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-sm shrink-0">
+    <div className="flex flex-col h-dvh max-w-md mx-auto bg-white shadow-xl relative overflow-hidden border-x border-slate-100">
+      <header className="pt-[max(1.5rem,env(safe-area-inset-top))] pb-4 px-5 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-sm shrink-0">
         <h1 className="text-xl font-bold tracking-tight">Surf ToDo Workbench</h1>
         <p className="text-indigo-400 text-[10px] font-semibold flex items-center gap-1 mt-0.5">
           <Sparkles className="w-2.5 h-2.5 fill-indigo-400" />

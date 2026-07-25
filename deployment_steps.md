@@ -223,6 +223,15 @@ Recreate the backend:
 docker compose up -d
 ```
 
+Then **re-push your functions** so `convex/auth.config.ts` re-evaluates
+`process.env.CONVEX_SITE_URL` against the new origin — without this, token
+validation fails with `No auth provider found matching the given token` for
+**all** sign-in methods (the trusted issuer stays stuck at the old URL):
+
+```bash
+npx convex dev --once
+```
+
 > Note: the JWT issuer changes from `http://127.0.0.1:3211` to
 > `https://site.todo.surfbible.in` — existing sessions are invalidated, so users
 > (you) simply sign in again.
@@ -276,6 +285,9 @@ Until this step is done, the email/password path fully covers registration.
 | Sign-in button spins forever | Wrong `NEXT_PUBLIC_CONVEX_URL` value | Must be `https://api.todo.surfbible.in` (no trailing slash issues — copy exactly) |
 | AI console says "Could not parse command" | `GEMINI_API_KEY` not set in Vercel | Add it, redeploy |
 | Google button does nothing / redirect error | Step 5 not completed | Expected — Google OAuth needs the public site URL + Google client config |
+| Sign-in redirected to `http://127.0.0.1:3211/...` | `CONVEX_SITE_ORIGIN` not set on the backend | Do Step 5c (`.env` beside `docker-compose.yml`, **no quotes**, never edit the compose file itself) |
+| Backend container exits (1) right after compose edit | Quoted/duplicated value in `docker-compose.yml` | Revert the compose file; put `CONVEX_SITE_ORIGIN=https://site.todo.surfbible.in` (unquoted) in `.env`; `docker compose config \| grep -i site_origin` to verify |
+| Logs say `No auth provider found matching the given token` | `auth.config.ts` still baked with the old site origin | Re-push functions: `npx convex dev --once` |
 | Vercel build fails on TypeScript | Stale local state | Run `npm run build` locally first; it must pass (it does on this code) |
 | Old UI still shows after deploy | CDN/browser cache | Hard-refresh (Ctrl+Shift+R); confirm the latest commit SHA in Vercel → Deployments |
 
