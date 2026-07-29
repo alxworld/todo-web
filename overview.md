@@ -22,6 +22,8 @@ toggle/complete, and delete tasks using natural language.
 | Filter by category | Client-side filter tabs ("All" + 5 categories) |
 | AI text commands | Next.js Server Action → Gemini → structured JSON → client executes mutation |
 | AI voice commands | Web Speech API (SpeechRecognition) → transcript → same AI pipeline |
+| **WhatsApp bot** | Meta Cloud API webhook → Convex HTTP action → command parser (+Gemini NL) → per-user task ops; replies free inside 24h window |
+| **WhatsApp reminders** | Convex cron (15 min) scans `dueAt` → send if 24h window open, else queue → flushed on next inbound (zero-cost-by-construction) |
 | Sign out | Header button → `useAuthActions().signOut` |
 
 ---
@@ -133,11 +135,15 @@ todo-web/
 │   │   └── ai.ts                 # Server Action: processTaskCommand → Gemini
 │   └── globals.css               # Tailwind v4 import + CSS custom properties
 ├── convex/                       # Convex backend
-│   ├── schema.ts                 # authTables + `todos` table (with userId ownership)
+│   ├── schema.ts                 # authTables + todos (+dueAt) + whatsappLinks/whatsappUsers/pendingNotifications
 │   ├── todos.ts                  # getTodos / addTodo / toggleTodo / deleteTodo (auth-gated)
+│   ├── whatsapp.ts               # WhatsApp bot: link codes, task ops, processInbound, sender
+│   ├── whatsappParser.ts         # Pure command grammar + webhook payload extraction (unit-tested)
+│   ├── gemini.ts                 # Gemini REST helper for NL parsing + dueAt extraction
+│   ├── crons.ts                  # 15-min due-task reminders with free-window gating
 │   ├── auth.config.ts            # JWT provider config (domain = CONVEX_SITE_URL)
 │   ├── auth.ts                   # convexAuth({ providers: [Google, Password] })
-│   ├── http.ts                   # Registers /api/auth/* + .well-known HTTP routes
+│   ├── http.ts                   # /api/auth/* routes + /whatsapp/webhook (GET handshake, POST HMAC-verified)
 │   ├── tsconfig.json             # TS config for the Convex function runtime
 │   ├── README.md                 # Convex scaffold docs
 │   └── _generated/               # Generated API, data model types, server helpers
@@ -200,7 +206,30 @@ Every function derives the caller server-side via `getAuthUserId(ctx)` and throw
 - **`convex/http.ts`** — exposes `/api/auth/signin/:provider`, `/api/auth/callback/:provider`,
   `/.well-known/jwks.json`, `/.well-known/openid-configuration`.
 
-There are no crons or scheduled functions; AI calls happen in Next.js Server Actions.
+There are no crons or scheduled functions for the web app itself; AI calls for the
+dashboard happen in Next.js Server Actions.
+
+### WhatsApp subsystem (see `whatsapp_feature.md` for the full guide)
+
+A zero-cost WhatsApp bot built on Meta's **Cloud API** with the SIM number onboarded
+directly via self-serve signup (a dedicated bot line — no WhatsApp app attached):
+
+- **Webhook:** `POST /whatsapp/webhook` verifies `X-Hub-Signature-256`
+  (HMAC-SHA256 with `WHATSAPP_APP_SECRET`), schedules async processing, returns 200
+  instantly; `GET` handles Meta's one-time verification handshake.
+- **Linking:** dashboard "Connect WhatsApp" panel issues a 6-char, single-use,
+  10-minute code; the user sends `LINK <code>` from WhatsApp to bind phone→user
+  (`whatsappUsers`). Only linked phones get bot replies.
+- **Commands:** pure deterministic parser (`whatsappParser.ts`, 27 unit tests) for
+  add/done/edit/move/delete/list/list-done/list-urgent/today/unlink; anything else
+  falls back to Gemini 2.5 Flash (`gemini.ts`) which also extracts `dueAt` times.
+- **Reminders:** `crons.ts` scans due tasks every 15 min — sends immediately when
+  the user's 24h free window is open, otherwise queues to `pendingNotifications`
+  and flushes on the next inbound message. No paid templates are ever used, so the
+  integration is free by construction.
+- **Env vars (backend):** `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`,
+  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_API_VERSION`,
+  `GEMINI_API_KEY`. Frontend: `NEXT_PUBLIC_WHATSAPP_BOT_NUMBER` (wa.me deep link).
 
 ---
 

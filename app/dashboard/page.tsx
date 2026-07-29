@@ -8,7 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { processTaskCommand } from "../actions/ai";
 import {
   CheckCircle2, Circle, Trash2, Plus, Layers, Mic, MicOff, Send,
-  Sparkles, LogOut, ClipboardList,
+  Sparkles, LogOut, ClipboardList, MessageCircle, X,
 } from "lucide-react";
 
 const SYSTEM_CATEGORIES = ["Personal", "Work", "Errands", "Fitness", "Urgent"] as const;
@@ -46,6 +46,9 @@ export default function DashboardPage() {
   const [aiFeedback, setAiFeedback] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [linkCode, setLinkCode] = useState<{ code: string; expiresAt: number } | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
@@ -56,6 +59,22 @@ export default function DashboardPage() {
   const createTodo = useMutation(api.todos.addTodo);
   const updateTodoStatus = useMutation(api.todos.toggleTodo);
   const removeTodo = useMutation(api.todos.deleteTodo);
+
+  const whatsAppStatus = useQuery(api.whatsapp.getWhatsAppStatus, isAuthenticated ? {} : "skip");
+  const createLinkCode = useMutation(api.whatsapp.createLinkCode);
+  const unlinkWhatsApp = useMutation(api.whatsapp.unlinkWhatsApp);
+
+  const botNumber = process.env.NEXT_PUBLIC_WHATSAPP_BOT_NUMBER;
+
+  const handleGenerateCode = async () => {
+    setIsGeneratingCode(true);
+    try {
+      const result = await createLinkCode({});
+      setLinkCode(result);
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
 
   const triggerAiOrchestration = useCallback(async (commandString: string) => {
     if (!commandString.trim() || !todos) return;
@@ -178,6 +197,18 @@ export default function DashboardPage() {
               {openCount} open
             </span>
             <button
+              onClick={() => setShowWhatsApp((v) => !v)}
+              title="Connect WhatsApp"
+              className={`relative p-2 rounded-lg transition-colors ${
+                showWhatsApp ? "text-white bg-white/10" : "text-slate-400 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              {whatsAppStatus?.linked && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              )}
+            </button>
+            <button
               onClick={() => void signOut()}
               title="Sign out"
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
@@ -187,6 +218,89 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* ── WhatsApp connect panel ─────────────────────────────────── */}
+      {showWhatsApp && (
+        <section className="bg-emerald-50/70 border-b border-emerald-100 px-4 py-3 shrink-0">
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              WhatsApp bot
+            </h2>
+            <button
+              onClick={() => setShowWhatsApp(false)}
+              className="p-0.5 text-emerald-400 hover:text-emerald-700 transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {whatsAppStatus === undefined ? (
+            <div className="flex items-center gap-2 py-2">
+              <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-[10px] text-emerald-600 font-medium">Checking link status...</p>
+            </div>
+          ) : whatsAppStatus.linked ? (
+            <div className="flex items-center justify-between gap-2 mt-1.5">
+              <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shrink-0" />
+                Linked · +{whatsAppStatus.phone}
+              </p>
+              <button
+                onClick={() => void unlinkWhatsApp({})}
+                className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+              >
+                Unlink
+              </button>
+            </div>
+          ) : (
+            <div className="mt-1.5 space-y-2">
+              <p className="text-[10px] text-emerald-700/80 leading-relaxed">
+                Add, close and list tasks from WhatsApp. Generate a code, then send it to the bot.
+              </p>
+              {linkCode ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-white border border-emerald-200 rounded-xl px-3 py-2">
+                    <span className="text-lg font-bold tracking-[0.2em] text-emerald-900">{linkCode.code}</span>
+                    <span className="text-[9px] font-semibold text-emerald-500">
+                      expires {new Date(linkCode.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  {botNumber ? (
+                    <a
+                      href={`https://wa.me/${botNumber}?text=${encodeURIComponent(`LINK ${linkCode.code}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 text-white rounded-xl px-3 py-2 text-[11px] font-bold transition-all active:scale-[0.99] hover:bg-emerald-700"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> Open WhatsApp with code
+                    </a>
+                  ) : (
+                    <p className="text-[10px] text-emerald-700 bg-white border border-emerald-100 rounded-lg px-2.5 py-1.5">
+                      Send <span className="font-bold">LINK {linkCode.code}</span> to the bot number from your WhatsApp.
+                    </p>
+                  )}
+                  <button
+                    onClick={() => setLinkCode(null)}
+                    className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800"
+                  >
+                    Generate a new code
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGenerateCode}
+                  disabled={isGeneratingCode}
+                  className="w-full bg-emerald-600 disabled:bg-emerald-300 text-white rounded-xl px-3 py-2 text-[11px] font-bold transition-all active:scale-[0.99] hover:bg-emerald-700"
+                >
+                  {isGeneratingCode ? "Generating..." : "Generate link code"}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── Category filter pills ──────────────────────────────────── */}
       <nav className="flex gap-1.5 px-3 py-2 overflow-x-auto bg-slate-50/80 border-b border-slate-100 scrollbar-none shrink-0">

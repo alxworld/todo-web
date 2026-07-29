@@ -9,8 +9,12 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
+import type * as gemini from "../gemini.js";
 import type * as http from "../http.js";
 import type * as todos from "../todos.js";
+import type * as whatsapp from "../whatsapp.js";
+import type * as whatsappParser from "../whatsappParser.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +24,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
+  gemini: typeof gemini;
   http: typeof http;
   todos: typeof todos;
+  whatsapp: typeof whatsapp;
+  whatsappParser: typeof whatsappParser;
 }>;
 
 /**
